@@ -1,0 +1,200 @@
+# Hotel Management System - Cursor Rules
+
+## Project Overview
+This is a Hotel Management System (HMS) built with Next.js 15+, TypeScript, Firebase, and Tailwind CSS.
+The system manages hotel operations including employee management, salary tracking, purchases (restaurant inventory), expenses, revenue, and financial reporting.
+
+## Tech Stack
+- **Framework**: Next.js 15+ with App Router
+- **Language**: TypeScript (strict mode)
+- **Database**: Firebase Realtime Database
+- **Authentication**: Firebase Auth with email verification
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **State Management**: React Context API (HMSProvider)
+- **Forms**: React Hook Form + Zod validation
+- **Charts**: Recharts
+- **Dates**: date-fns
+
+## Project Structure
+```
+src/
+├── app/
+│   ├── (dashboard)/          # Protected dashboard routes with sidebar
+│   │   ├── layout.tsx        # Dashboard layout with HMSProvider
+│   │   ├── page.tsx          # Main dashboard
+│   │   ├── employees/        # Employee CRUD
+│   │   ├── purchases/        # Purchase/inventory CRUD
+│   │   ├── expenses/         # Operating expenses CRUD
+│   │   ├── revenue/          # Revenue/income CRUD
+│   │   └── reports/          # Monthly financial reports
+│   ├── login/                # Login page
+│   ├── register/             # Registration page
+│   ├── layout.tsx            # Root layout with AuthProvider
+│   └── globals.css           # Global styles and CSS variables
+├── components/
+│   ├── ui/                   # shadcn/ui components
+│   ├── layout/               # Layout components (sidebar, header)
+│   ├── employees/            # Employee-specific components
+│   ├── purchases/            # Purchase-specific components
+│   ├── expenses/             # Expense-specific components
+│   ├── revenue/              # Revenue-specific components
+│   └── shared/               # Shared components (PageHeader, EmptyState, ConfirmDialog)
+├── context/
+│   ├── auth-context.tsx      # Firebase auth state & protected routes
+│   └── hms-context.tsx       # All HMS data & CRUD operations
+├── hooks/
+│   ├── use-mobile.tsx        # Mobile detection hook
+│   └── use-toast.ts          # Toast notifications hook
+└── lib/
+    ├── firebase.ts           # Firebase initialization (uses env vars)
+    ├── types.ts              # All TypeScript interfaces and types
+    ├── utils.ts              # Utility functions (formatCurrency, exportToCSV, etc.)
+    └── calculations.ts       # Legacy calculations (can be removed)
+```
+
+## Key Data Models (defined in lib/types.ts)
+
+### Employee
+- id, userId, name, designation, salaryMonthly, phone?, email?, joiningDate?, status, createdAt, updatedAt
+
+### Expense
+- id, userId, category, title, amount, expenseDate, paymentMethod?, notes?, createdAt, updatedAt
+
+### Purchase
+- id, userId, itemName, itemCategory?, supplierName?, quantity, unit, unitCost, totalCost, purchaseDate, notes?, createdAt, updatedAt
+
+### Revenue
+- id, userId, category, description, amount, revenueDate, paymentMethod?, customerName?, roomNumber?, notes?, createdAt, updatedAt
+
+## Business Logic
+
+### Monthly Summary Calculation
+```typescript
+totalRevenue = sum of all revenues for the month
+totalExpenses = sum of all expenses for the month
+totalPurchases = sum of all purchase costs for the month
+totalSalaries = sum of monthly salaries for active employees
+netProfit = totalRevenue - (totalExpenses + totalPurchases + totalSalaries)
+profitMargin = (netProfit / totalRevenue) * 100
+```
+
+## Code Style Guidelines
+
+### TypeScript
+- Use strict TypeScript with proper type definitions
+- All types are centralized in `lib/types.ts`
+- Use FormData types for form inputs (omitting id, userId, timestamps)
+
+### React Components
+- Use functional components with TypeScript
+- Follow file naming: kebab-case for files (e.g., `employee-sheet.tsx`)
+- Keep components focused and under 200 lines
+- Use 'use client' only when necessary (forms, state, effects)
+
+### Firebase Operations
+- All CRUD operations are in `context/hms-context.tsx`
+- Data is automatically user-scoped (userId filter)
+- Real-time listeners with `onValue` for live updates
+- Use `uuid` for generating IDs client-side
+
+### Forms
+- Use React Hook Form with Zod validation
+- Schema defined at top of component
+- FormField components from shadcn/ui
+- Calendar picker for dates with proper ISO string handling
+
+### Tables & Lists
+- Use shadcn/ui Table components
+- Include empty states with action buttons
+- Support CSV export via `exportToCSV` utility
+- Dropdown menu for edit/delete actions
+- Confirm dialog for delete operations
+
+## Styling Guidelines
+- Use Tailwind CSS utility classes
+- CSS variables for theming (light/dark mode)
+- Colors: primary (blue), accent (green), destructive (red)
+- Consistent spacing: p-6 for page content, gap-4 for grids
+- Cards for content sections
+- Badge for status indicators
+
+## Common Patterns
+
+### Page Structure
+```tsx
+export default function PageName() {
+  const { data, loading } = useHMS();
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  
+  if (loading) return <Skeleton />;
+  
+  return (
+    <>
+      <AppHeader />
+      <main className="p-6">
+        <PageHeader title="..." action={{ label: "Add", onClick: handleAdd }} />
+        <Card>
+          {data.length === 0 ? <EmptyState /> : <Table />}
+        </Card>
+      </main>
+      <FormSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} />
+      <ConfirmDialog />
+    </>
+  );
+}
+```
+
+### Form Sheet Structure
+```tsx
+const schema = z.object({ ... });
+type FormValues = z.infer<typeof schema>;
+
+export function FormSheet({ open, onOpenChange, item }: Props) {
+  const form = useForm<FormValues>({ resolver: zodResolver(schema) });
+  
+  useEffect(() => {
+    if (item) form.reset(itemToFormValues(item));
+    else form.reset(defaultValues);
+  }, [item, open]);
+  
+  const onSubmit = async (values: FormValues) => {
+    if (item) await updateItem(item.id, values);
+    else await addItem(values);
+    onOpenChange(false);
+  };
+  
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            {/* FormFields */}
+            <SheetFooter>
+              <Button type="submit">Save</Button>
+            </SheetFooter>
+          </form>
+        </Form>
+      </SheetContent>
+    </Sheet>
+  );
+}
+```
+
+## Environment Variables
+All Firebase config should be in `.env.local`:
+- NEXT_PUBLIC_FIREBASE_API_KEY
+- NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+- NEXT_PUBLIC_FIREBASE_DATABASE_URL
+- NEXT_PUBLIC_FIREBASE_PROJECT_ID
+- NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+- NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+- NEXT_PUBLIC_FIREBASE_APP_ID
+- NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+
+## Git Commit Messages
+- feat: New feature
+- fix: Bug fix
+- refactor: Code refactoring
+- style: Styling changes
+- docs: Documentation
+- chore: Maintenance tasks
